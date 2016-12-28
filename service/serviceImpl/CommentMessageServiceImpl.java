@@ -4,35 +4,38 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import cn.edu.bjtu.weibo.dao.CommentDAO;
 import cn.edu.bjtu.weibo.dao.TopicDAO;
 import cn.edu.bjtu.weibo.dao.UserDAO;
 import cn.edu.bjtu.weibo.dao.WeiboDAO;
-import cn.edu.bjtu.weibo.dao.impl.CommentDaoImpl;
-import cn.edu.bjtu.weibo.dao.impl.TopicDaoImpl;
-import cn.edu.bjtu.weibo.dao.impl.UserDaoImpl;
-import cn.edu.bjtu.weibo.dao.impl.WeiboDaoImpl;
 import cn.edu.bjtu.weibo.model.Comment;
 import cn.edu.bjtu.weibo.model.Topic;
 import cn.edu.bjtu.weibo.model.User;
 import cn.edu.bjtu.weibo.service.CommentMessageService;
 import cn.edu.bjtu.weibo.service.MessageToMeService;
 
+@Service("commentMessageService")
 public class CommentMessageServiceImpl implements CommentMessageService{
-
+	@Autowired
+	private UserDAO userDAO;
+	@Autowired
+	private CommentDAO commentDAO;
+	@Autowired
+	private WeiboDAO weiboDAO;	
+	@Autowired
+	private TopicDAO topicDAO;
+	@Autowired
+	private MessageToMeService messageToMeService;
 	
 	// userId 被评论者的ID       comment里面的是 评论者的ID
 	@Override
 	public boolean CommentToWeibo(String userId, String weiboId, Comment comment) {
 		// TODO Auto-generated method stub
 		String content = comment.getContent();
-		
-		
+		    
 		/*
 		 * 
 		 * 第一步 解析# # 和@
@@ -178,10 +181,6 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	     * 
 	     */
 	    
-	    TopicDAO t_dao = new TopicDaoImpl();
-	    CommentDAO  c_dao = new CommentDaoImpl();
-	    UserDAO u_dao = new UserDaoImpl();
-	    WeiboDAO w_dao = new WeiboDaoImpl();
 	    
 	 
 	    //
@@ -235,12 +234,12 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	     comment.setTopicIdList(topic);
 	     comment.setContent(new_content);
 	     
-	    String commentId = c_dao.insertNewComment(comment);  //将此条评论插入数据库,我此刻是没有这条评论的ID 的
+	    String commentId = commentDAO.insertNewComment(comment);  //将此条评论插入数据库,我此刻是没有这条评论的ID 的
 	     
 	    
-	    w_dao.insertCommentList(weiboId, commentId); //插入 该微博的评论列表
+	    weiboDAO.insertCommentList(weiboId, commentId); //插入 该微博的评论列表
 	   
-	    u_dao.insertCommentOnWeibo(comment.getUserId(), weiboId); // 我评论过的微博
+	    userDAO.insertCommentOnWeibo(commentId, weiboId); // 我评论过的微博
 	     
 	     
 	    /*
@@ -255,10 +254,10 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			   
 		    
 		 //得到所有话题的名字
-		  topic_list=t_dao.getAllTopic();
+		  topic_list=topicDAO.getAllTopic();
 		    
 		  for(int i=0;i<topic_list.size();i++){
-		    	String topic_name = t_dao.getContent(topic_list.get(i));
+		    	String topic_name = topicDAO.getContent(topic_list.get(i));
 		    	topic_name_list.add(topic_name);
 		   }
 		  
@@ -267,7 +266,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  if(topic_name_list.contains(topic.get(i))){
 				  
 				  int index=topic_name_list.indexOf(topic.get(i));
-				  t_dao.insertComment(topic_list.get(index), commentId);  //该话题的评论 
+				  topicDAO.insertComment(topic_list.get(index), commentId);  //该话题的评论 
 				  
 				  System.out.println("有这个话题："+topic.get(i));
 				  
@@ -277,8 +276,8 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  new_topic.setTopic((String)topic.get(i));
 				  new_topic.setDate(time);
 				  
-				 String topicId= t_dao.insertNewTopic(new_topic);
-				 t_dao.insertComment(topicId, commentId);
+				 String topicId= topicDAO.insertNewTopic(new_topic);
+				 topicDAO.insertComment(topicId, commentId);
 				  
 				 System.out.println("新建了话题："+topic.get(i));
 			  }
@@ -288,22 +287,21 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		  List<String>  user_list = new ArrayList<String>();  //所有的userID
 		  List<String>  user_name_list = new ArrayList<String>();  //所有的userID和name
 		  
-		  user_list=u_dao.getTotalUserId();
+		  user_list=userDAO.getTotalUserId();
 		  
 		  for(int i =0 ;i<user_list.size();i++){
 			  User user = new User();
 			  
-			  user = u_dao.getUser(user_list.get(i));
+			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
-		   
-		  MessageToMeService mtms= new MessageToMeServiceImpl();
+
 		  for(int i =0 ;i<at.size();i++){
 			  
 			  if(user_name_list.contains(at.get(i))){    //存在用户
 				  
 				  int index=user_name_list.indexOf(at.get(i));
-				  mtms.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
+				  messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
 				  
 				  System.out.println("有这个用户："+at.get(i));
 				  
@@ -315,7 +313,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		  }
 		  
 		  //让被评论的人知道
-		  mtms.commentMyCommentInform(userId, commentId);
+		  messageToMeService.commentMyCommentInform(userId, commentId);
 		  return true;
 		
 	}
@@ -324,7 +322,6 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	public boolean CommentToComment(String userId, String CommentId, Comment comment) {
 		// TODO Auto-generated method stub
         String content = comment.getContent();
-		
 		
 		/*
 		 * 
@@ -471,10 +468,6 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	     * 
 	     */
 	    
-	    TopicDAO t_dao = new TopicDaoImpl();
-	    CommentDAO  c_dao = new CommentDaoImpl();
-	    UserDAO u_dao = new UserDaoImpl();
-	    WeiboDAO w_dao = new WeiboDaoImpl();
 	    
 	 
 	    //
@@ -528,12 +521,12 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	     comment.setTopicIdList(topic);
 	     comment.setContent(new_content);
 	     
-	    String commentId = c_dao.insertNewComment(comment);  //将此条评论插入数据库,我此刻是没有这条评论的ID 的
+	    String commentId = commentDAO.insertNewComment(comment);  //将此条评论插入数据库,我此刻是没有这条评论的ID 的
 	     
 	    
-	    c_dao.insertCommentList(CommentId,commentId); //插入 该评论的评论列表 ,前者是原评论，后者是 新的评论的ID
+	    commentDAO.insertCommentList(CommentId,commentId); //插入 该评论的评论列表 ,前者是原评论，后者是 新的评论的ID
 	   
-	    u_dao.insertCommentOnComment(comment.getUserId(), commentId); // 我评论过的评论
+	    userDAO.insertCommentOnComment(commentId, CommentId); // 我评论过的评论
 	    
 	     
 	     
@@ -549,10 +542,10 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			   
 		    
 		 //得到所有话题的名字
-		  topic_list=t_dao.getAllTopic();
+		  topic_list=topicDAO.getAllTopic();
 		    
 		  for(int i=0;i<topic_list.size();i++){
-		    	String topic_name = t_dao.getContent(topic_list.get(i));
+		    	String topic_name = topicDAO.getContent(topic_list.get(i));
 		    	topic_name_list.add(topic_name);
 		   }
 		  
@@ -561,7 +554,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  if(topic_name_list.contains(topic.get(i))){
 				  
 				  int index=topic_name_list.indexOf(topic.get(i));
-				  t_dao.insertComment(topic_list.get(index), commentId);  //该话题的评论 
+				  topicDAO.insertComment(topic_list.get(index), commentId);  //该话题的评论 
 				  
 				  System.out.println("有这个话题："+topic.get(i));
 				  
@@ -571,8 +564,8 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  new_topic.setTopic((String)topic.get(i));
 				  new_topic.setDate(time);
 				  
-				 String topicId= t_dao.insertNewTopic(new_topic);
-				 t_dao.insertComment(topicId, commentId);
+				 String topicId= topicDAO.insertNewTopic(new_topic);
+				 topicDAO.insertComment(topicId, commentId);
 				  
 				 System.out.println("新建了话题："+topic.get(i));
 			  }
@@ -582,22 +575,20 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		  List<String>  user_list = new ArrayList<String>();  //所有的userID
 		  List<String>  user_name_list = new ArrayList<String>();  //所有的userID和name
 		  
-		  user_list=u_dao.getTotalUserId();
+		  user_list=userDAO.getTotalUserId();
 		  
 		  for(int i =0 ;i<user_list.size();i++){
 			  User user = new User();
 			  
-			  user = u_dao.getUser(user_list.get(i));
+			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
-		   
-		  MessageToMeService mtms= new MessageToMeServiceImpl();
 		  for(int i =0 ;i<at.size();i++){
 			  
 			  if(user_name_list.contains(at.get(i))){    //存在用户
 				  
 				  int index=user_name_list.indexOf(at.get(i));
-				  mtms.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
+				  messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
 				  
 				  System.out.println("有这个用户："+at.get(i));
 				  
@@ -609,7 +600,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		  }
 		  
 		  //让被评论的人知道
-		  mtms.commentMyCommentInform(userId, commentId);
+		  messageToMeService.commentMyCommentInform(userId, commentId);
 		  return true;
 	}
 
