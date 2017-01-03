@@ -4,11 +4,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +20,6 @@ import cn.edu.bjtu.weibo.service.MessageToMeService;
 
 @Service("commentMessageService")
 public class CommentMessageServiceImpl implements CommentMessageService{
-
 	@Autowired
 	private UserDAO userDAO;
 	@Autowired
@@ -36,12 +31,14 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	@Autowired
 	private MessageToMeService messageToMeService;
 	
+	
 	// userId 被评论者的ID       comment里面的是 评论者的ID
 	@Override
 	public boolean CommentToWeibo(String userId, String weiboId, Comment comment) {
 		// TODO Auto-generated method stub
 		String content = comment.getContent();
-		 /* 
+		/*
+		 * 
 		 * 第一步 解析# # 和@
 		 */
 		List valid_topic_index  = new  ArrayList();   //合法的#
@@ -162,6 +159,10 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    			want=='%' || want=='^' || want=='&' || want=='*' || want=='(' ||
 	    			want==')' || want=='=' || want=='+' || want=='{' || want=='}' ) {  //遇到符号 需要结束
 	    		at_end = index-1;
+	    		
+	    		if(at_start!=-1){   //没有合法@了
+	    			
+	    		at_end = index-1;
 	    		String at_str = content.substring(at_start+1, at_end+1);
 	    		at.add(at_str);
 	    		at_start_index.add(at_start);
@@ -170,9 +171,14 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    		k++;
 	    		if(k<at_index.size()){
 	    		    index = (int) at_index.get(k);
+	    		    at_start=index;
+		    		at_end=-1;
+	    		}else{
+	    			at_start = -1;
+	    			at_end=-1;      //清空一对
 	    		}
-	    		at_start=index;
-	    		at_end=-1;
+	    		
+	    		}
 	    			
 	    	}
 	    	//合法的字符 ，跳过
@@ -283,7 +289,9 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		  
 		  
 		  for( int i=0 ;i<topic.size();i++){
-			  if(topic_name_list.contains(topic.get(i))){
+			  
+			  if(topic_name_list.isEmpty()==false){     //系统的话题不为空
+			  if(topic_name_list.contains(topic.get(i))){    
 				  
 				  int index=topic_name_list.indexOf(topic.get(i));
 				  topicDAO.insertComment(topic_list.get(index), commentId);  //该话题的评论 
@@ -297,15 +305,25 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  new_topic.setDate(time);
 				  
 				 String topicId= topicDAO.insertNewTopic(new_topic);
-				 topicDAO.insertComment(topicId, commentId);
+				 
+				 if(topicId.equals("-1")){
 				  
-				 System.out.println("新建了话题并插入了评论："+topic.get(i));
+				    System.out.println("这个话题可能刚刚新建了，不用再新建了："+topic.get(i));
+				 }else{
+					 topicDAO.insertComment(topicId, commentId);	  
+					 System.out.println("新建了话题并插入了评论："+topic.get(i));
+				 }
+			  }
+			  
 			  }
 		  }
 		    
 		  //对@的处理
 		  List<String>  user_list = new ArrayList<String>();  //所有的userID
 		  List<String>  user_name_list = new ArrayList<String>();  //所有的userID和name
+		  
+		  List<String>  aleardy_at_list = new ArrayList<String>();   //已经@过的用户
+		  aleardy_at_list.add("#");  //防止数组越界
 		  
 		  user_list=userDAO.getTotalUserId();
 		  
@@ -315,20 +333,25 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
-		   
 		  for(int i =0 ;i<at.size();i++){
 			  
-			  if(user_name_list.contains(at.get(i))){    //存在用户
+			  if(user_name_list.isEmpty()==false){    //系统的用户不为空
+			  if(user_name_list.contains(at.get(i)) ){    //存在用户且没有被at过
 				  
-				  int index=user_name_list.indexOf(at.get(i));
-				  messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
+				  if(aleardy_at_list.contains(at.get(i))){
+					  System.out.println("已经提醒过这个用户了："+at.get(i));
+				  }else{
+				     int index=user_name_list.indexOf(at.get(i));
+				     messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID 
+				     aleardy_at_list.add((String) at.get(i));   //加入已经at了的用户名单
 				  
-				  System.out.println("有这个用户就提醒他消息："+at.get(i));
-				  
+				     System.out.println("有这个用户就提醒他消息："+at.get(i));
+				  }
 			  }else{
 				  
 				 //用户不存在 不用管？
 				  System.out.println("没这个用户不用管："+at.get(i));
+			  }
 			  }
 		  }
 		  
@@ -342,6 +365,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	public boolean CommentToComment(String userId, String CommentId, Comment comment) {
 		// TODO Auto-generated method stub
         String content = comment.getContent();
+
 		/*
 		 * 
 		 * 第一步 解析# # 和@
@@ -461,18 +485,27 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	 if(want=='@'||want=='#' || want=='!' || want==' ' || want=='$' ||
 	    			want=='%' || want=='^' || want=='&' || want=='*' || want=='(' ||
 	    			want==')' || want=='=' || want=='+' || want=='{' || want=='}' ) {  //遇到符号 需要结束
-	    		at_end = index-1;
-	    		String at_str = content.substring(at_start+1, at_end+1);
-	    		at.add(at_str);
-	    		at_start_index.add(at_start);
-	    		at_end_index.add(at_end);
 	    		
-	    		k++;
-	    		if(k<at_index.size()){
-	    		    index = (int) at_index.get(k);
-	    		}
-	    		at_start=index;
-	    		at_end=-1;
+	    		 at_end = index-1;		
+	    		if(at_start!=-1){   //没有合法@了
+	    			
+		    		at_end = index-1;
+		    		String at_str = content.substring(at_start+1, at_end+1);
+		    		at.add(at_str);
+		    		at_start_index.add(at_start);
+		    		at_end_index.add(at_end);
+		    		
+		    		k++;
+		    		if(k<at_index.size()){
+		    		    index = (int) at_index.get(k);
+		    		    at_start=index;
+			    		at_end=-1;
+		    		}else{
+		    			at_start = -1;
+		    			at_end=-1;      //清空一对
+		    		}
+		    		
+		    		}
 	    			
 	    	}
 	    	//合法的字符 ，跳过
@@ -524,7 +557,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	}
 	    	
 	    	else if(left_char.isEmpty()==false && index==(int)left_char.get(b)){   //#
-	    		 str = "<a href = \"话题跳转动作\"><font color=\"blue\">#" +topic.get(b)+"#</font></a>";		    		 
+	    		 str = "<a href = \"话题跳转动作\"><font color=\"#blue\">#" +topic.get(b)+"#</font></a>";		    		 
 	    		 index=(int)right_char.get(b);
 	    		 if((b+1)<topic.size()){
 	    		    b++;
@@ -598,16 +631,23 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  new_topic.setTopic((String)topic.get(i));
 				  new_topic.setDate(time);
 				  
-				 String topicId= topicDAO.insertNewTopic(new_topic);
-				 topicDAO.insertComment(topicId, commentId);
-				  
-				 System.out.println("新建了话题："+topic.get(i));
+				  String topicId= topicDAO.insertNewTopic(new_topic);
+				  if(topicId.equals("-1")){
+					  
+					    System.out.println("这个话题可能刚刚新建了，不用再新建了："+topic.get(i));
+				  }else{
+						 topicDAO.insertComment(topicId, commentId);	  
+						 System.out.println("新建了话题并插入了评论："+topic.get(i));
+				  }
 			  }
 		  }
 		    
 		  //对@的处理
 		  List<String>  user_list = new ArrayList<String>();  //所有的userID
 		  List<String>  user_name_list = new ArrayList<String>();  //所有的userID和name
+		
+		  List<String>  aleardy_at_list = new ArrayList<String>();   //已经@过的用户
+		  aleardy_at_list.add("#");  //防止数组越界
 		  
 		  user_list=userDAO.getTotalUserId();
 		  
@@ -617,21 +657,27 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
-		   
+
 		  for(int i =0 ;i<at.size();i++){
 			  
-			  if(user_name_list.contains(at.get(i))){    //存在用户
-				  
-				  int index=user_name_list.indexOf(at.get(i));
-				  messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
-				  
-				  System.out.println("有这个用户："+at.get(i));
-				  
-			  }else{
-				  
-				 //用户不存在 不用管？
-				  System.out.println("没这个用户："+at.get(i));
-			  }
+			  if(user_name_list.isEmpty()==false){    //系统的用户不为空
+				  if(user_name_list.contains(at.get(i)) ){    //存在用户且没有被at过
+					  
+					  if(aleardy_at_list.contains(at.get(i))){
+						  System.out.println("已经提醒过这个用户了："+at.get(i));
+					  }else{
+					     int index=user_name_list.indexOf(at.get(i));
+					     messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID 
+					     aleardy_at_list.add((String) at.get(i));   //加入已经at了的用户名单
+					  
+					     System.out.println("有这个用户就提醒他消息："+at.get(i));
+					  }
+				  }else{
+					  
+					 //用户不存在 不用管？
+					  System.out.println("没这个用户不用管："+at.get(i));
+				  }
+				  }
 		  }
 		  
 		  //让被评论的人知道
