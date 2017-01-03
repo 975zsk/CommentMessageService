@@ -4,9 +4,14 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
 import cn.edu.bjtu.weibo.dao.CommentDAO;
 import cn.edu.bjtu.weibo.dao.TopicDAO;
 import cn.edu.bjtu.weibo.dao.UserDAO;
@@ -19,6 +24,7 @@ import cn.edu.bjtu.weibo.service.MessageToMeService;
 
 @Service("commentMessageService")
 public class CommentMessageServiceImpl implements CommentMessageService{
+
 	@Autowired
 	private UserDAO userDAO;
 	@Autowired
@@ -35,9 +41,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	public boolean CommentToWeibo(String userId, String weiboId, Comment comment) {
 		// TODO Auto-generated method stub
 		String content = comment.getContent();
-		    
-		/*
-		 * 
+		 /* 
 		 * 第一步 解析# # 和@
 		 */
 		List valid_topic_index  = new  ArrayList();   //合法的#
@@ -56,6 +60,8 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		 List left_char =new ArrayList();   //左#的index
 		 List right_char =new ArrayList();   //右#的index
 		
+		 if(topic_index.isEmpty()==false){   //有话题
+			 
 		 
 		 int left=(int) topic_index.get(0);
 		 int right =0;
@@ -92,11 +98,19 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    System.out.println(valid_topic_index.toString());
 	    System.out.println(topic.toString());
 		
-	    
+		 }
+		 
+		 
+		
 	    //扫描 @  ，遇到合法#  # ，自动跳过
 	    int j=0;
-	    int skip_index = (int) valid_topic_index.get(j);
+	    int skip_index =-1;
 	    
+	    if(valid_topic_index.isEmpty()==false){       //有话题
+	                skip_index = (int) valid_topic_index.get(j);
+	    }else{
+	    	skip_index=-1;  //不需要任何跳过
+	    }
 	    
 	    
 	    List at = new ArrayList();   //存放@的内容
@@ -131,6 +145,9 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	}
 	    }
 	    
+	    if(at_index.isEmpty()==false){   //@不能为空
+	    	
+	    	
 	    System.out.println(at_index.toString());
 	    int k = 0;
 	   
@@ -141,7 +158,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	
 	    	char want = content.charAt(index);
 	    	 
-	    	 if(want=='@'||want=='#' || want=='!' || want==' ' || want=='$' ||
+	    	 if(want=='@'||want=='#' || want==' ' || want=='$' ||
 	    			want=='%' || want=='^' || want=='&' || want=='*' || want=='(' ||
 	    			want==')' || want=='=' || want=='+' || want=='{' || want=='}' ) {  //遇到符号 需要结束
 	    		at_end = index-1;
@@ -161,6 +178,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	//合法的字符 ，跳过
 	    }
 	    
+	    if(k<at_index.size()){
 	    //考虑到 @666 评论结束情况 就是以字符串结尾分割
 	    at_start=(int) at_index.get(k);
 	    at_end = content.length()-1;
@@ -170,11 +188,13 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		at_start_index.add(at_start);
 		at_end_index.add(at_end);
 	   
+	    }
+	    
 	    System.out.println(at.toString());
 	    System.out.println(at_start_index.toString());
 	    System.out.println(at_end_index.toString());
 	    
-	    
+	    }
 	    /*
 	     * 
 	     * 第二步：拼接新的content， 将评论加入数据库
@@ -193,7 +213,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	
 	    	char temp = content.charAt(index);
 	    	String str ="";
-	    	if(index==(int)at_start_index.get(a)){  //@
+	    	if(at_start_index.isEmpty()==false && index==(int)at_start_index.get(a)){  //@
 	    		 str = "<a href = \"at跳转动作\"><font color=\"blue\">@" +at.get(a)+"</font></a>";	    		
 	    		 index =(int) at_end_index.get(a);
 	    		 if((a+1)<at.size()){	    		   
@@ -202,7 +222,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    		 
 	    	}
 	    	
-	    	else if(index==(int)left_char.get(b)){   //#
+	    	else if(left_char.isEmpty()==false && index==(int)left_char.get(b)){   //#
 	    		 str = "<a href = \"话题跳转动作\"><font color=\"blue\">#" +topic.get(b)+"#</font></a>";		    		 
 	    		 index=(int)right_char.get(b);
 	    		 if((b+1)<topic.size()){
@@ -268,7 +288,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  int index=topic_name_list.indexOf(topic.get(i));
 				  topicDAO.insertComment(topic_list.get(index), commentId);  //该话题的评论 
 				  
-				  System.out.println("有这个话题："+topic.get(i));
+				  System.out.println("有这个话题并插入了评论："+topic.get(i));
 				  
 			  }else{    //创建一个话题
 				  Topic new_topic = new Topic();
@@ -279,7 +299,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				 String topicId= topicDAO.insertNewTopic(new_topic);
 				 topicDAO.insertComment(topicId, commentId);
 				  
-				 System.out.println("新建了话题："+topic.get(i));
+				 System.out.println("新建了话题并插入了评论："+topic.get(i));
 			  }
 		  }
 		    
@@ -295,7 +315,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
-
+		   
 		  for(int i =0 ;i<at.size();i++){
 			  
 			  if(user_name_list.contains(at.get(i))){    //存在用户
@@ -303,12 +323,12 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 				  int index=user_name_list.indexOf(at.get(i));
 				  messageToMeService.atMeInfromComment(user_list.get(index), commentId);   //得到被@的用户ID  
 				  
-				  System.out.println("有这个用户："+at.get(i));
+				  System.out.println("有这个用户就提醒他消息："+at.get(i));
 				  
 			  }else{
 				  
 				 //用户不存在 不用管？
-				  System.out.println("没这个用户："+at.get(i));
+				  System.out.println("没这个用户不用管："+at.get(i));
 			  }
 		  }
 		  
@@ -322,7 +342,6 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	public boolean CommentToComment(String userId, String CommentId, Comment comment) {
 		// TODO Auto-generated method stub
         String content = comment.getContent();
-		
 		/*
 		 * 
 		 * 第一步 解析# # 和@
@@ -343,6 +362,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 		 List left_char =new ArrayList();   //左#的index
 		 List right_char =new ArrayList();   //右#的index
 		
+		 if(topic_index.isEmpty()==false){   //有话题
 		 
 		 int left=(int) topic_index.get(0);
 		 int right =0;
@@ -379,10 +399,17 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    System.out.println(valid_topic_index.toString());
 	    System.out.println(topic.toString());
 		
-	    
+	 }
+		 
 	    //扫描 @  ，遇到合法#  # ，自动跳过
 	    int j=0;
-	    int skip_index = (int) valid_topic_index.get(j);
+        int skip_index =-1;
+	    
+	    if(valid_topic_index.isEmpty()==false){       //有话题
+	                skip_index = (int) valid_topic_index.get(j);
+	    }else{
+	    	skip_index=-1;  //不需要任何跳过
+	    }
 	    
 	    
 	    
@@ -418,6 +445,9 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	}
 	    }
 	    
+	    if(at_index.isEmpty()==false){   //@不能为空
+	    	
+	    
 	    System.out.println(at_index.toString());
 	    int k = 0;
 	   
@@ -449,6 +479,9 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    }
 	    
 	    //考虑到 @666 评论结束情况 就是以字符串结尾分割
+	    if(k<at_index.size()){
+	    	
+	    
 	    at_start=(int) at_index.get(k);
 	    at_end = content.length()-1;
 	    String at_str = content.substring(at_start+1);
@@ -456,12 +489,13 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    at.add(at_str);
 		at_start_index.add(at_start);
 		at_end_index.add(at_end);
-	   
+	    }
+	    
 	    System.out.println(at.toString());
 	    System.out.println(at_start_index.toString());
 	    System.out.println(at_end_index.toString());
 	    
-	    
+	    }
 	    /*
 	     * 
 	     * 第二步：拼接新的content， 将评论加入数据库
@@ -480,7 +514,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    	
 	    	char temp = content.charAt(index);
 	    	String str ="";
-	    	if(index==(int)at_start_index.get(a)){  //@
+	    	if(at_start_index.isEmpty()==false && index==(int)at_start_index.get(a)){  //@
 	    		 str = "<a href = \"at跳转动作\"><font color=\"blue\">@" +at.get(a)+"</font></a>";	    		
 	    		 index =(int) at_end_index.get(a);
 	    		 if((a+1)<at.size()){	    		   
@@ -489,7 +523,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 	    		 
 	    	}
 	    	
-	    	else if(index==(int)left_char.get(b)){   //#
+	    	else if(left_char.isEmpty()==false && index==(int)left_char.get(b)){   //#
 	    		 str = "<a href = \"话题跳转动作\"><font color=\"blue\">#" +topic.get(b)+"#</font></a>";		    		 
 	    		 index=(int)right_char.get(b);
 	    		 if((b+1)<topic.size()){
@@ -583,6 +617,7 @@ public class CommentMessageServiceImpl implements CommentMessageService{
 			  user = userDAO.getUser(user_list.get(i));
 			  user_name_list.add(user.getName());   //放入Map
 		  }
+		   
 		  for(int i =0 ;i<at.size();i++){
 			  
 			  if(user_name_list.contains(at.get(i))){    //存在用户
